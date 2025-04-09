@@ -3,7 +3,11 @@ import init, { Game } from "../dist/lib";
 
 import { App } from "./App";
 import Engine from "./engine";
-import Renderer2D, { RendererOptions } from "./engine/Renderer2D";
+import Renderer2D, {
+  RendererObject,
+  RendererObjectType,
+  RendererOptions,
+} from "./engine/Renderer2D";
 import EventsManager, { EventObject } from "./engine/EventsManager";
 import { Vec2 } from "./type";
 
@@ -14,6 +18,7 @@ window.addEventListener("load", () => {
 
     //
     const game: Game = new Game();
+    console.log(game.current_piece, game.board);
 
     // data
     const rendererOptions: RendererOptions = (() => {
@@ -28,6 +33,26 @@ window.addEventListener("load", () => {
         resolution,
       };
     })();
+
+    const currentPieceObject: RendererObject = {
+      id: "current-piece",
+      position: game.current_piece.position as Vec2,
+      data: [
+        [0, 0, 0],
+        [0, 1, 0],
+        [1, 1, 0],
+        [1, 2, 0],
+        [2, 2, 0],
+        [2, 1, 0],
+        [3, 1, 0],
+        [3, 0, 0],
+        [0, 0, 0],
+      ],
+      color: [255, 255, 0, 1],
+      scale: [1, 1],
+      rotation: [0, 0, 0],
+      type: RendererObjectType.Filled,
+    };
 
     const eventObjects: EventObject<any>[] = [
       {
@@ -52,10 +77,6 @@ window.addEventListener("load", () => {
           let direction = null;
 
           switch (event.key) {
-            case "ArrowUp":
-              direction = "up";
-              break;
-
             case "ArrowDown":
               direction = "down";
               break;
@@ -88,6 +109,7 @@ window.addEventListener("load", () => {
     const engine = new Engine(renderer);
 
     // bind
+    renderer.add(currentPieceObject);
     eventsManager.addEventListener(eventObjects[0].name, (data: any) => {
       if (!data.position) {
         return;
@@ -101,9 +123,40 @@ window.addEventListener("load", () => {
       }
 
       console.log("move:", data.direction);
+
+      let positionOffset: [number, number] = [0, 0];
+      switch (data.direction) {
+        case "down":
+          positionOffset[1] = 1;
+          break;
+
+        case "left":
+          positionOffset[0] = -1;
+          break;
+
+        case "right":
+          positionOffset[0] = 1;
+          break;
+
+        default:
+          break;
+      }
+
+      if (0 !== positionOffset[0] || 0 !== positionOffset[1]) {
+        if (game.update_current_piece_position(positionOffset)) {
+          currentPieceObject.position = game.current_piece.position;
+        } else {
+          console.error(
+            `unable to update [${game.current_piece.position.join(
+              ", "
+            )}] with offset [${positionOffset.join(", ")}]`
+          );
+        }
+      }
     });
 
     // loop
+    let timestamp = Number((Date.now() / 1000).toFixed());
     engine.start(() => {
       app.debug(
         (game.board as number[][]).reduce(
@@ -111,6 +164,19 @@ window.addEventListener("load", () => {
           ""
         )
       );
+
+      const now = Number((Date.now() / 1000).toFixed());
+      if (timestamp < now) {
+        timestamp = now;
+
+        console.log(`next: ${game.next()}`);
+
+        currentPieceObject.position = game.current_piece.position;
+      }
     });
+
+    setTimeout(() => {
+      engine.stop();
+    }, 60 * 1000);
   });
 });
